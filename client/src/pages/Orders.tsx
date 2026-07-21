@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Order, Product } from '@shared/types';
 import { api } from '../api/client';
 import { useToast } from '../context/ToastContext';
@@ -12,6 +13,21 @@ function statusPill(status: Order['status']) {
   const map = { Fulfilled: 'ok', 'Partially Fulfilled': 'warn', Pending: 'danger' } as const;
   return map[status];
 }
+
+const lineItemVariants = {
+  initial: { opacity: 0, height: 0, y: -10 },
+  animate: { opacity: 1, height: 'auto', y: 0, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] as const } },
+  exit: { opacity: 0, height: 0, y: -10, transition: { duration: 0.2 } },
+};
+
+const tableRowVariants = {
+  hidden: { opacity: 0, x: -8 },
+  show: (i: number) => ({
+    opacity: 1,
+    x: 0,
+    transition: { delay: 0.15 + i * 0.05, duration: 0.3, ease: [0.16, 1, 0.3, 1] as const },
+  }),
+};
 
 export function Orders() {
   const toast = useToast();
@@ -77,8 +93,12 @@ export function Orders() {
   }
 
   return (
-    <>
-      <div className="card" style={{ padding: 22, marginBottom: 22 }}>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="card" style={{ padding: 24, marginBottom: 24 }}>
         <div className="section-head">
           <h2>Create order</h2>
         </div>
@@ -87,97 +107,139 @@ export function Orders() {
           backordered rather than oversold.
         </p>
 
-        {lines.map((line, i) => (
-          <div className="line-item-row" key={i}>
-            <select
-              className="input"
-              value={line.sku}
-              onChange={(e) => updateLine(i, { sku: e.target.value })}
+        <AnimatePresence mode="popLayout">
+          {lines.map((line, i) => (
+            <motion.div
+              className="line-item-row"
+              key={`line-${i}-${line.sku}`}
+              variants={lineItemVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              layout
             >
-              <option value="">Select a product…</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.sku}>
-                  {p.name} ({p.sku}) — {p.quantity} in stock
-                </option>
-              ))}
-            </select>
-            <input
-              className="input mono"
-              type="number"
-              min={1}
-              value={line.quantity}
-              onChange={(e) => updateLine(i, { quantity: e.target.value })}
-            />
-            <button className="btn btn-ghost btn-sm" onClick={() => removeLine(i)} aria-label="Remove line" disabled={lines.length === 1}>
-              ✕
-            </button>
-          </div>
-        ))}
+              <select
+                className="input"
+                value={line.sku}
+                onChange={(e) => updateLine(i, { sku: e.target.value })}
+              >
+                <option value="">Select a product…</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.sku}>
+                    {p.name} ({p.sku}) — {p.quantity} in stock
+                  </option>
+                ))}
+              </select>
+              <input
+                className="input mono"
+                type="number"
+                min={1}
+                value={line.quantity}
+                onChange={(e) => updateLine(i, { quantity: e.target.value })}
+              />
+              <motion.button
+                className="btn btn-ghost btn-sm btn-icon"
+                onClick={() => removeLine(i)}
+                aria-label="Remove line"
+                disabled={lines.length === 1}
+                style={{ opacity: lines.length === 1 ? 0.3 : 1 }}
+                whileHover={{ scale: lines.length === 1 ? 1 : 1.1 }}
+                whileTap={{ scale: lines.length === 1 ? 1 : 0.9 }}
+              >
+                ✕
+              </motion.button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-          <button className="btn btn-ghost btn-sm" onClick={addLine}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
+          <motion.button
+            className="btn btn-ghost btn-sm"
+            onClick={addLine}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
             + Add line
-          </button>
-          <button className="btn btn-primary" onClick={submit} disabled={submitting}>
+          </motion.button>
+          <motion.button
+            className="btn btn-primary"
+            onClick={submit}
+            disabled={submitting}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
             {submitting ? 'Placing…' : 'Place order'}
-          </button>
+          </motion.button>
         </div>
       </div>
 
       <div className="card">
-        <div className="section-head" style={{ padding: '16px 20px 0' }}>
+        <div className="section-head" style={{ padding: '20px 24px 0' }}>
           <h2>Order history</h2>
         </div>
         {loading ? (
-          <div className="spinner" style={{ margin: '40px auto' }} />
+          <div style={{ padding: 24 }}>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="skeleton" style={{ height: 44, marginBottom: 8, width: i === 3 ? '60%' : '100%' }} />
+            ))}
+          </div>
         ) : orders.length === 0 ? (
           <div className="empty">
             <div className="big">No orders yet</div>
             Placed orders and their fulfillment breakdown will appear here.
           </div>
         ) : (
-          <table className="table" style={{ marginTop: 12 }}>
-            <thead>
-              <tr>
-                <th>Reference</th>
-                <th>Items (requested → fulfilled / backordered)</th>
-                <th>Status</th>
-                <th>Placed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o) => (
-                <tr key={o.id}>
-                  <td className="mono">{o.reference}</td>
-                  <td>
-                    {o.items.map((it) => (
-                      <div key={it.sku} className="mono" style={{ fontSize: 12.5 }}>
-                        <span className="muted">{it.sku}</span> {it.requestedQty} →{' '}
-                        <span style={{ color: 'var(--ok)' }}>{it.fulfilledQty}</span>
-                        {it.backorderedQty > 0 && (
-                          <>
-                            {' '}
-                            / <span style={{ color: 'var(--warn)' }}>{it.backorderedQty} bo</span>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </td>
-                  <td>
-                    <span className={`pill ${statusPill(o.status)}`}>
-                      <span className="dot" />
-                      {o.status}
-                    </span>
-                  </td>
-                  <td className="muted mono" style={{ fontSize: 12.5 }}>
-                    {new Date(o.createdAt).toLocaleString()}
-                  </td>
+          <div className="table-wrap">
+            <table className="table" style={{ marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Items (requested → fulfilled / backordered)</th>
+                  <th>Status</th>
+                  <th>Placed</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {orders.map((o, i) => (
+                  <motion.tr
+                    key={o.id}
+                    custom={i}
+                    variants={tableRowVariants}
+                    initial="hidden"
+                    animate="show"
+                    whileHover={{ backgroundColor: 'var(--surface-hover)' }}
+                  >
+                    <td className="mono" style={{ fontWeight: 500, color: 'var(--ink)' }}>{o.reference}</td>
+                    <td>
+                      {o.items.map((it) => (
+                        <div key={it.sku} className="mono" style={{ fontSize: 12.5, marginBottom: 2 }}>
+                          <span className="muted">{it.sku}</span> {it.requestedQty} →{' '}
+                          <span style={{ color: 'var(--ok)' }}>{it.fulfilledQty}</span>
+                          {it.backorderedQty > 0 && (
+                            <>
+                              {' '}
+                              / <span style={{ color: 'var(--warn)' }}>{it.backorderedQty} bo</span>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </td>
+                    <td>
+                      <span className={`pill ${statusPill(o.status)}`}>
+                        <span className="dot" />
+                        {o.status}
+                      </span>
+                    </td>
+                    <td className="muted mono" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+                      {new Date(o.createdAt).toLocaleString()}
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
-    </>
+    </motion.div>
   );
 }

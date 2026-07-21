@@ -1,9 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, type Variants } from 'framer-motion';
 import type { Product } from '@shared/types';
 import { api } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { stockLevel, stockLabel, stockPct } from '../lib/stock';
+import { useAnimatedValue } from '../hooks/useAnimatedValue';
+
+function AnimatedMetric({ value, className }: { value: number; className?: string }) {
+  const animated = useAnimatedValue(value, 800);
+  return <div className={`value ${className ?? ''}`}>{animated}</div>;
+}
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
+};
+
+const fadeUpItem: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } },
+};
+
+const tableRowVariants: Variants = {
+  hidden: { opacity: 0, x: -8 },
+  show: (i: number) => ({
+    opacity: 1,
+    x: 0,
+    transition: { delay: 0.3 + i * 0.05, duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+  }),
+};
 
 export function Dashboard() {
   const toast = useToast();
@@ -27,33 +53,67 @@ export function Dashboard() {
 
   const attention = [...stats.outOfStock, ...stats.lowStock];
 
-  if (loading) return <div className="spinner" style={{ margin: '40px auto' }} />;
+  if (loading) {
+    return (
+      <div>
+        <div className="grid-metrics">
+          {[1, 2, 3, 4].map((i) => (
+            <motion.div
+              key={i}
+              className="card metric"
+              style={{ overflow: 'hidden' }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1, duration: 0.4 }}
+            >
+              <div className="skeleton" style={{ height: 12, width: 80, marginBottom: 12 }} />
+              <div className="skeleton" style={{ height: 32, width: 60 }} />
+            </motion.div>
+          ))}
+        </div>
+        <motion.div
+          className="card"
+          style={{ padding: 24 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.4 }}
+        >
+          <div className="skeleton" style={{ height: 20, width: 150, marginBottom: 16 }} />
+          <div className="skeleton" style={{ height: 40, width: '100%', marginBottom: 8 }} />
+          <div className="skeleton" style={{ height: 40, width: '100%', marginBottom: 8 }} />
+          <div className="skeleton" style={{ height: 40, width: '80%' }} />
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
-    <>
+    <motion.div
+      variants={staggerContainer}
+      initial="hidden"
+      animate="show"
+    >
       <div className="grid-metrics">
-        <div className="card metric">
+        <motion.div className="card metric" variants={fadeUpItem} whileHover={{ scale: 1.02 }}>
           <div className="label">Distinct SKUs</div>
-          <div className="value">{stats.skuCount}</div>
-        </div>
-        <div className="card metric">
+          <AnimatedMetric value={stats.skuCount} />
+        </motion.div>
+        <motion.div className="card metric" variants={fadeUpItem} whileHover={{ scale: 1.02 }}>
           <div className="label">Units on hand</div>
-          <div className="value">{stats.totalUnits.toLocaleString()}</div>
-        </div>
-        <div className="card metric">
+          <AnimatedMetric value={stats.totalUnits} />
+        </motion.div>
+        <motion.div className={`card metric${stats.lowStock.length ? ' warn' : ''}`} variants={fadeUpItem} whileHover={{ scale: 1.02 }}>
           <div className="label">Low stock</div>
-          <div className={`value ${stats.lowStock.length ? 'warn' : ''}`}>{stats.lowStock.length}</div>
-        </div>
-        <div className="card metric">
+          <AnimatedMetric value={stats.lowStock.length} className={stats.lowStock.length ? 'warn' : ''} />
+        </motion.div>
+        <motion.div className={`card metric${stats.outOfStock.length ? ' danger' : ''}`} variants={fadeUpItem} whileHover={{ scale: 1.02 }}>
           <div className="label">Out of stock</div>
-          <div className={`value ${stats.outOfStock.length ? 'danger' : ''}`}>
-            {stats.outOfStock.length}
-          </div>
-        </div>
+          <AnimatedMetric value={stats.outOfStock.length} className={stats.outOfStock.length ? 'danger' : ''} />
+        </motion.div>
       </div>
 
-      <div className="card">
-        <div className="section-head" style={{ padding: '16px 20px 0' }}>
+      <motion.div className="card" variants={fadeUpItem}>
+        <div className="section-head" style={{ padding: '20px 24px 0' }}>
           <h2>Needs attention</h2>
           <Link to="/products" className="btn btn-ghost btn-sm">
             Manage inventory →
@@ -66,44 +126,53 @@ export function Dashboard() {
             Nothing is at or below its low-stock threshold right now.
           </div>
         ) : (
-          <table className="table" style={{ marginTop: 12 }}>
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>On hand</th>
-                <th>Threshold</th>
-                <th>Health</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {attention.map((p) => {
-                const level = stockLevel(p);
-                return (
-                  <tr key={p.id}>
-                    <td>{p.name}</td>
-                    <td className="mono muted">{p.sku}</td>
-                    <td className="mono">{p.quantity}</td>
-                    <td className="mono muted">{p.lowStockThreshold}</td>
-                    <td>
-                      <div className={`stockbar ${level}`} style={{ ['--pct' as any]: `${stockPct(p)}%` }}>
-                        <span />
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`pill ${level}`}>
-                        <span className="dot" />
-                        {stockLabel(level)}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table className="table" style={{ marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>SKU</th>
+                  <th>On hand</th>
+                  <th>Threshold</th>
+                  <th>Health</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attention.map((p, i) => {
+                  const level = stockLevel(p);
+                  return (
+                    <motion.tr
+                      key={p.id}
+                      custom={i}
+                      variants={tableRowVariants}
+                      initial="hidden"
+                      animate="show"
+                      whileHover={{ backgroundColor: 'var(--surface-hover)' }}
+                    >
+                      <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{p.name}</td>
+                      <td className="mono muted">{p.sku}</td>
+                      <td className="mono">{p.quantity}</td>
+                      <td className="mono muted">{p.lowStockThreshold}</td>
+                      <td>
+                        <div className={`stockbar ${level}`} style={{ ['--pct' as any]: `${stockPct(p)}%` }}>
+                          <span />
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`pill ${level}`}>
+                          <span className="dot" />
+                          {stockLabel(level)}
+                        </span>
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
-    </>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, useRef } from 'react';
+import { motion } from 'framer-motion';
 import type { Product } from '@shared/types';
 import { api } from '../api/client';
 import { useToast } from '../context/ToastContext';
@@ -48,12 +49,25 @@ export function Products() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Keyboard shortcut: Cmd/Ctrl+K to focus search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -167,81 +181,128 @@ export function Products() {
   });
 
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
       <div className="section-head">
-        <input
-          className="input"
-          style={{ maxWidth: 300 }}
-          placeholder="Search by name, SKU or category"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <button className="btn btn-primary" onClick={openCreate}>
+        <div style={{ position: 'relative', flex: '0 0 auto' }}>
+          <input
+            ref={searchRef}
+            className="input"
+            style={{ maxWidth: 360, paddingLeft: 36 }}
+            placeholder="Search products… (⌘K)"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search products by name, SKU or category"
+          />
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--faint)',
+              fontSize: 13,
+              pointerEvents: 'none',
+            }}
+          >⌕</span>
+        </div>
+        <motion.button
+          className="btn btn-primary"
+          onClick={openCreate}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
           + New product
-        </button>
+        </motion.button>
       </div>
 
       <div className="card">
         {loading ? (
-          <div className="spinner" style={{ margin: '40px auto' }} />
+          <div style={{ padding: 24 }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="skeleton" style={{ height: 44, marginBottom: 8, width: i === 5 ? '70%' : '100%' }} />
+            ))}
+          </div>
         ) : filtered.length === 0 ? (
           <div className="empty">
-            <div className="big">No products yet</div>
-            Create your first product to start tracking stock.
+            <div className="big">{query ? 'No results found' : 'No products yet'}</div>
+            {query ? 'Try a different search term.' : 'Create your first product to start tracking stock.'}
           </div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Category</th>
-                <th>On hand</th>
-                <th>Health</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => {
-                const level = stockLevel(p);
-                return (
-                  <tr key={p.id}>
-                    <td>{p.name}</td>
-                    <td className="mono muted">{p.sku}</td>
-                    <td>
-                      <span className="pill neutral">{p.category}</span>
-                    </td>
-                    <td className="mono">
-                      {p.quantity}
-                      <span className="muted"> / {p.lowStockThreshold}</span>
-                    </td>
-                    <td>
-                      <div className={`stockbar ${level}`} style={{ ['--pct' as any]: `${stockPct(p)}%` }}>
-                        <span />
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`pill ${level}`}>
-                        <span className="dot" />
-                        {stockLabel(level)}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="row-actions">
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(p)}>
-                          Edit
-                        </button>
-                        <button className="btn btn-danger btn-sm" onClick={() => onDelete(p)}>
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>SKU</th>
+                  <th>Category</th>
+                  <th>On hand</th>
+                  <th>Health</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p, i) => {
+                  const level = stockLevel(p);
+                  return (
+                    <motion.tr
+                      key={p.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 + i * 0.03, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                      whileHover={{ backgroundColor: 'var(--surface-hover)' }}
+                    >
+                      <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{p.name}</td>
+                      <td className="mono muted">{p.sku}</td>
+                      <td>
+                        <span className="pill neutral">{p.category || '—'}</span>
+                      </td>
+                      <td className="mono">
+                        {p.quantity}
+                        <span className="faint"> / {p.lowStockThreshold}</span>
+                      </td>
+                      <td>
+                        <div className={`stockbar ${level}`} style={{ ['--pct' as any]: `${stockPct(p)}%` }}>
+                          <span />
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`pill ${level}`}>
+                          <span className="dot" />
+                          {stockLabel(level)}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="row-actions">
+                          <motion.button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => openEdit(p)}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            Edit
+                          </motion.button>
+                          <motion.button
+                            className="btn btn-danger btn-sm"
+                            onClick={() => onDelete(p)}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            Delete
+                          </motion.button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -251,12 +312,24 @@ export function Products() {
           onClose={() => setModalOpen(false)}
           footer={
             <>
-              <button className="btn btn-ghost" onClick={() => setModalOpen(false)}>
+              <motion.button
+                className="btn btn-ghost"
+                onClick={() => setModalOpen(false)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
                 Cancel
-              </button>
-              <button className="btn btn-primary" onClick={onSubmit} disabled={saving} type="submit">
+              </motion.button>
+              <motion.button
+                className="btn btn-primary"
+                onClick={onSubmit}
+                disabled={saving}
+                type="submit"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
                 {saving ? 'Saving…' : editing ? 'Save changes' : 'Create product'}
-              </button>
+              </motion.button>
             </>
           }
         >
@@ -313,7 +386,7 @@ export function Products() {
             </div>
 
             <p className="form-note">
-              Optional — physical attributes feed the shipping calculator (Tier 3).
+              Optional — physical attributes feed the shipping calculator.
             </p>
             <div className="form-grid">
               <label className="field">
@@ -337,6 +410,6 @@ export function Products() {
           </form>
         </Modal>
       )}
-    </>
+    </motion.div>
   );
 }

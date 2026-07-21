@@ -1,7 +1,18 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion, type Variants } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
+};
+
+const fadeUpItem: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } },
+};
 
 export function Register() {
   const { register } = useAuth();
@@ -51,10 +62,17 @@ export function Register() {
       </aside>
 
       <div className="auth-form-side">
-        <div className="auth-card">
-          <h1>Create account</h1>
-          <p className="lede">Your password is hashed with bcrypt before it is stored.</p>
-          <form onSubmit={onSubmit}>
+        <motion.div
+          className="auth-card"
+          variants={staggerContainer}
+          initial="hidden"
+          animate="show"
+        >
+          <motion.h1 variants={fadeUpItem}>Create account</motion.h1>
+          <motion.p className="lede" variants={fadeUpItem}>
+            Your password is hashed with bcrypt before it is stored.
+          </motion.p>
+          <motion.form onSubmit={onSubmit} variants={fadeUpItem}>
             <label className="field">
               <span>Email</span>
               <input
@@ -89,14 +107,20 @@ export function Register() {
               />
             </label>
             {error && <div className="field-error">{error}</div>}
-            <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} disabled={busy}>
+            <motion.button
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: 12, padding: '11px 16px' }}
+              disabled={busy}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
               {busy ? 'Creating…' : 'Create account'}
-            </button>
-          </form>
-          <p className="muted" style={{ marginTop: 20, fontSize: 13 }}>
+            </motion.button>
+          </motion.form>
+          <motion.p className="muted" style={{ marginTop: 20, fontSize: 13 }} variants={fadeUpItem}>
             Already have an account? <Link to="/login">Sign in</Link>
-          </p>
-        </div>
+          </motion.p>
+        </motion.div>
       </div>
     </div>
   );
