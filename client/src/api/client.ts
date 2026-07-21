@@ -4,6 +4,9 @@
 
 const TOKEN_KEY = 'stockroom.token';
 
+// Fix: Read base URL from Vite env variable, fallback to empty string (local proxy)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 export const tokenStore = {
   get: () => localStorage.getItem(TOKEN_KEY),
   set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
@@ -22,14 +25,22 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(`/api${path}`, {
+  // Fix: Prepended API_BASE_URL to the fetch path
+  const res = await fetch(`${API_BASE_URL}/api${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  
+  // Safe JSON handling to prevent HTML-parse crashes
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
 
   if (!res.ok) {
     const message = data?.error ?? `Request failed (${res.status})`;
