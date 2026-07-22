@@ -12,6 +12,23 @@ export const VOLUMETRIC_DIVISOR = 5000;
 
 export const CURRENCY = 'INR';
 
+// Warehouse locations — each warehouse serves a zone.
+// Origin pincode determines which warehouse the order ships from.
+export interface Warehouse {
+  id: string;
+  name: string;
+  pincode: string;
+  zoneId: string;
+}
+
+export const WAREHOUSES: Warehouse[] = [
+  { id: 'wh-delhi', name: 'Delhi NCR', pincode: '110001', zoneId: 'A' },
+  { id: 'wh-mumbai', name: 'Mumbai', pincode: '400001', zoneId: 'A' },
+  { id: 'wh-bangalore', name: 'Bangalore', pincode: '560001', zoneId: 'A' },
+  { id: 'wh-chennai', name: 'Chennai', pincode: '600001', zoneId: 'A' },
+  { id: 'wh-kolkata', name: 'Kolkata', pincode: '700001', zoneId: 'A' },
+];
+
 export interface Zone {
   id: string;
   name: string;

@@ -13,6 +13,7 @@ shippingRouter.post(
   '/',
   asyncHandler(async (req, res) => {
     const payload: ShippingRequest = {
+      originPincode: String(req.body?.originPincode ?? '').trim(),
       destinationPincode: String(req.body?.destinationPincode ?? '').trim(),
       items: Array.isArray(req.body?.items) ? req.body.items : [],
     };

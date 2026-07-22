@@ -63,6 +63,7 @@ export interface ShippingItemInput {
 }
 
 export interface ShippingRequest {
+  originPincode: string;
   destinationPincode: string;
   items: ShippingItemInput[];
 }

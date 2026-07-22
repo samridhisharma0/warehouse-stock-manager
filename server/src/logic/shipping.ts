@@ -6,6 +6,7 @@ import {
   VEHICLES,
   VOLUMETRIC_DIVISOR,
   ZONES,
+  WAREHOUSES,
   type Zone,
   type Vehicle,
 } from '../config/shipping.js';
@@ -97,10 +98,11 @@ function generateVehicleOptions(
 /**
  * Core constraint-satisfaction routine.
  *
- * 1. Resolve destination zone from the pincode.
- * 2. For every line, chargeable weight = max(actual, volumetric) × quantity.
- * 3. Generate all feasible vehicle combinations and pick the cheapest.
- * 4. Return the optimal option plus all alternatives ranked by cost.
+ * 1. Resolve destination zone from the destination pincode.
+ * 2. Validate origin pincode against known warehouses.
+ * 3. For every line, chargeable weight = max(actual, volumetric) × quantity.
+ * 4. Generate all feasible vehicle combinations and pick the cheapest.
+ * 5. Return the optimal option plus all alternatives ranked by cost.
  */
 export function calculateShipping(req: ShippingRequest): ShippingResponse {
   if (!req.items || req.items.length === 0) {
@@ -109,7 +111,25 @@ export function calculateShipping(req: ShippingRequest): ShippingResponse {
   if (!/^\d{6}$/.test(req.destinationPincode.trim())) {
     throw new Error('Destination pincode must be a 6-digit number.');
   }
+  if (!/^\d{6}$/.test(req.originPincode.trim())) {
+    throw new Error('Origin pincode must be a 6-digit number.');
+  }
 
+  // Find the nearest warehouse to the origin pincode.
+  const originWarehouse = WAREHOUSES.find((w) => w.pincode === req.originPincode.trim());
+  if (!originWarehouse) {
+    // Find nearest warehouse by prefix match.
+    const originPrefix = req.originPincode.trim().slice(0, 2);
+    const matchedWarehouse = WAREHOUSES.find((w) => w.pincode.startsWith(originPrefix));
+    if (!matchedWarehouse) {
+      throw new Error(
+        `No warehouse found near pincode ${req.originPincode}. ` +
+        `Available warehouses: ${WAREHOUSES.map((w) => `${w.name} (${w.pincode})`).join(', ')}.`
+      );
+    }
+  }
+
+  const warehouse = originWarehouse ?? WAREHOUSES[0];
   const zone = resolveZone(req.destinationPincode);
 
   let totalActual = 0;
@@ -159,6 +179,10 @@ export function calculateShipping(req: ShippingRequest): ShippingResponse {
 
   const breakdown: ShippingBreakdownStep[] = [
     {
+      label: 'Origin warehouse',
+      detail: `Order ships from ${warehouse.name} (pincode ${warehouse.pincode}).`,
+    },
+    {
       label: 'Destination zone',
       detail: `Pincode ${req.destinationPincode} → Zone ${zone.id} (${zone.name}) at ${CURRENCY} ${zone.ratePerKg}/kg. ${zone.description}`,
     },
@@ -190,6 +214,7 @@ export function calculateShipping(req: ShippingRequest): ShippingResponse {
   ];
 
   const justification =
+    `Order ships from ${warehouse.name} (pincode ${warehouse.pincode}). ` +
     `Shipping to pincode ${req.destinationPincode} falls in Zone ${zone.id} (${zone.name}, ${CURRENCY} ${zone.ratePerKg}/kg). ` +
     `Total chargeable weight is ${totalChargeable} kg (actual ${totalActual} kg vs volumetric ${totalVolumetric} kg — the higher wins). ` +
     cheapest.justification +

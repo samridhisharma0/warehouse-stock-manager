@@ -41,6 +41,7 @@ const ZONE_MATRIX = [
 export function Shipping() {
   const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
+  const [originPincode, setOriginPincode] = useState('110001');
   const [pincode, setPincode] = useState('110001');
   const [rows, setRows] = useState<ItemRow[]>([{ ...blankRow }]);
   const [result, setResult] = useState<ShippingResponse | null>(null);
@@ -77,7 +78,8 @@ export function Shipping() {
   }
 
   async function calculate() {
-    if (!/^\d{6}$/.test(pincode.trim())) return toast.error('Enter a valid 6-digit pincode.');
+    if (!/^\d{6}$/.test(originPincode.trim())) return toast.error('Enter a valid 6-digit origin pincode.');
+    if (!/^\d{6}$/.test(pincode.trim())) return toast.error('Enter a valid 6-digit destination pincode.');
     const items = rows
       .map((r) => ({
         quantity: Number(r.quantity),
@@ -98,6 +100,7 @@ export function Shipping() {
     setResult(null);
     try {
       const res = await api.post<ShippingResponse>('/calculate-shipping', {
+        originPincode: originPincode.trim(),
         destinationPincode: pincode.trim(),
         items,
       });
@@ -133,6 +136,17 @@ export function Shipping() {
         <div className="section-head">
           <h2>Shipment</h2>
         </div>
+
+        <label className="field" style={{ maxWidth: 220 }}>
+          <span>Origin pincode</span>
+          <input
+            className="input mono"
+            value={originPincode}
+            maxLength={6}
+            onChange={(e) => setOriginPincode(e.target.value.replace(/\D/g, ''))}
+            placeholder="110001"
+          />
+        </label>
 
         <label className="field" style={{ maxWidth: 220 }}>
           <span>Destination pincode</span>

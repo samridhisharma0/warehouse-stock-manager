@@ -57,11 +57,12 @@ export function Layout() {
     if (!el) return;
     const lenis = new Lenis({
       wrapper: el,
-      content: el.firstElementChild ?? el,
-      duration: 1.0,
+      content: el,
+      duration: 1.2,
       easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       touchMultiplier: 2,
-      syncTouch: false,
+      syncTouch: true,
+      infinite: false,
     });
     let rafId = 0;
     function raf(time: number) {
