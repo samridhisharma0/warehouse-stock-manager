@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode, useRef } from 'react';
-import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'motion/react';
 
 interface Props {
   title: string;

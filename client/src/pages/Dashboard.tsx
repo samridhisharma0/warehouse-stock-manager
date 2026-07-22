@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, type Variants } from 'framer-motion';
+import { motion, type Variants } from 'motion/react';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import type { Product } from '@shared/types';
 import { api } from '../api/client';
 import { useToast } from '../context/ToastContext';
+import { EmptyState } from '../components/EmptyState';
 import { stockLevel, stockLabel, stockPct } from '../lib/stock';
-import { useAnimatedValue } from '../hooks/useAnimatedValue';
-
-function AnimatedMetric({ value, className }: { value: number; className?: string }) {
-  const animated = useAnimatedValue(value, 800);
-  return <div className={`value ${className ?? ''}`}>{animated}</div>;
-}
+import { AnimatedCounter } from '../components/ui/MotionElements';
+import { TiltCard, GlowCard, MagneticButton } from '../components/ui/MotionElements';
+import { DashboardHero } from '../components/ui/DashboardHero';
+import { useGsapParallax } from '../hooks/useReducedMotion';
 
 const staggerContainer: Variants = {
   hidden: { opacity: 0 },
@@ -35,6 +35,8 @@ export function Dashboard() {
   const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [attentionRef] = useAutoAnimate();
+  useGsapParallax('.metric', 0.08);
 
   useEffect(() => {
     api
@@ -93,38 +95,48 @@ export function Dashboard() {
       initial="hidden"
       animate="show"
     >
+      <DashboardHero />
+
       <div className="grid-metrics">
-        <motion.div className="card metric" variants={fadeUpItem} whileHover={{ scale: 1.02 }}>
-          <div className="label">Distinct SKUs</div>
-          <AnimatedMetric value={stats.skuCount} />
-        </motion.div>
-        <motion.div className="card metric" variants={fadeUpItem} whileHover={{ scale: 1.02 }}>
-          <div className="label">Units on hand</div>
-          <AnimatedMetric value={stats.totalUnits} />
-        </motion.div>
-        <motion.div className={`card metric${stats.lowStock.length ? ' warn' : ''}`} variants={fadeUpItem} whileHover={{ scale: 1.02 }}>
-          <div className="label">Low stock</div>
-          <AnimatedMetric value={stats.lowStock.length} className={stats.lowStock.length ? 'warn' : ''} />
-        </motion.div>
-        <motion.div className={`card metric${stats.outOfStock.length ? ' danger' : ''}`} variants={fadeUpItem} whileHover={{ scale: 1.02 }}>
-          <div className="label">Out of stock</div>
-          <AnimatedMetric value={stats.outOfStock.length} className={stats.outOfStock.length ? 'danger' : ''} />
-        </motion.div>
+        <TiltCard>
+          <GlowCard className="card metric" glowColor="var(--accent)">
+            <div className="label">Distinct SKUs</div>
+            <AnimatedCounter value={stats.skuCount} className="value" />
+          </GlowCard>
+        </TiltCard>
+        <TiltCard>
+          <GlowCard className="card metric" glowColor="var(--ok)">
+            <div className="label">Units on hand</div>
+            <AnimatedCounter value={stats.totalUnits} className="value" />
+          </GlowCard>
+        </TiltCard>
+        <TiltCard>
+          <GlowCard className={`card metric${stats.lowStock.length ? ' warn' : ''}`} glowColor="var(--warn)">
+            <div className="label">Low stock</div>
+            <AnimatedCounter value={stats.lowStock.length} className={`value${stats.lowStock.length ? ' warn' : ''}`} />
+          </GlowCard>
+        </TiltCard>
+        <TiltCard>
+          <GlowCard className={`card metric${stats.outOfStock.length ? ' danger' : ''}`} glowColor="var(--danger)">
+            <div className="label">Out of stock</div>
+            <AnimatedCounter value={stats.outOfStock.length} className={`value${stats.outOfStock.length ? ' danger' : ''}`} />
+          </GlowCard>
+        </TiltCard>
       </div>
 
       <motion.div className="card" variants={fadeUpItem}>
         <div className="section-head" style={{ padding: '20px 24px 0' }}>
           <h2>Needs attention</h2>
-          <Link to="/products" className="btn btn-ghost btn-sm">
-            Manage inventory →
+          <Link to="/products" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none' }}>
+            <MagneticButton className="btn-ghost btn-sm">Manage inventory →</MagneticButton>
           </Link>
         </div>
 
         {attention.length === 0 ? (
-          <div className="empty">
-            <div className="big">Everything is well stocked</div>
-            Nothing is at or below its low-stock threshold right now.
-          </div>
+          <EmptyState
+            title="Everything is well stocked"
+            subtitle="Nothing is at or below its low-stock threshold right now."
+          />
         ) : (
           <div className="table-wrap">
             <table className="table" style={{ marginTop: 12 }}>
@@ -138,7 +150,7 @@ export function Dashboard() {
                   <th>Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody ref={attentionRef}>
                 {attention.map((p, i) => {
                   const level = stockLevel(p);
                   return (

@@ -72,10 +72,27 @@ export interface ShippingBreakdownStep {
   detail: string;
 }
 
+export interface ShippingOption {
+  vehicle: string;
+  vehicleCount: number;
+  dispatchCost: number;
+  weightCost: number;
+  totalCost: number;
+  justification: string;
+}
+
+export interface ZoneInfo {
+  id: string;
+  name: string;
+  ratePerKg: number;
+  description: string;
+}
+
 export interface ShippingResponse {
   destinationPincode: string;
   zone: string;
   zoneRatePerKg: number;
+  zoneInfo: ZoneInfo;
   totalActualWeightKg: number;
   totalVolumetricWeightKg: number;
   totalChargeableWeightKg: number;
@@ -87,6 +104,8 @@ export interface ShippingResponse {
   currency: string;
   justification: string;
   breakdown: ShippingBreakdownStep[];
+  alternatives: ShippingOption[];
+  cheapestOption: ShippingOption;
 }
 
 export interface ApiError {

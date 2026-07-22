@@ -1,8 +1,14 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, lazy, Suspense } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, type Variants } from 'framer-motion';
+import { motion, type Variants } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { AnimatedText, MagneticButton } from '../components/ui/MotionElements';
+import { AuthSlider } from '../components/ui/AuthSlider';
+
+const ParticlesBg = lazy(() =>
+  import('../components/ParticlesBg').then((m) => ({ default: m.ParticlesBg }))
+);
 
 const staggerContainer: Variants = {
   hidden: { opacity: 0 },
@@ -40,27 +46,33 @@ export function Login() {
 
   return (
     <div className="auth-wrap">
-      <aside className="auth-aside">
-        <div className="kicker">// stockroom ops console</div>
-        <div>
-          <h2>Every unit accounted for.</h2>
-          <p>
-            Track inventory, fulfil orders without overselling, and quote shipping across zones —
-            all from one console.
-          </p>
-        </div>
-        <div className="auth-metrics">
-          <div className="m">
-            <div className="n">3</div>
-            <div className="l">tiers of logic</div>
+      <aside className="auth-aside" style={{ position: 'relative' }}>
+        <Suspense fallback={null}>
+          <ParticlesBg />
+        </Suspense>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div className="kicker">// stockroom ops console</div>
+          <div>
+            <h2>Every unit accounted for.</h2>
+            <p>
+              Track inventory, fulfil orders without overselling, and quote shipping across zones —
+              all from one console.
+            </p>
           </div>
-          <div className="m">
-            <div className="n">0</div>
-            <div className="l">oversells</div>
-          </div>
-          <div className="m">
-            <div className="n">4</div>
-            <div className="l">zones priced</div>
+          <AuthSlider mode="login" />
+          <div className="auth-metrics">
+            <div className="m">
+              <div className="n">3</div>
+              <div className="l">tiers of logic</div>
+            </div>
+            <div className="m">
+              <div className="n">0</div>
+              <div className="l">oversells</div>
+            </div>
+            <div className="m">
+              <div className="n">4</div>
+              <div className="l">zones priced</div>
+            </div>
           </div>
         </div>
       </aside>
@@ -72,7 +84,9 @@ export function Login() {
           initial="hidden"
           animate="show"
         >
-          <motion.h1 variants={fadeUpItem}>Sign in</motion.h1>
+          <motion.h1 variants={fadeUpItem}>
+            <AnimatedText text="Sign in" />
+          </motion.h1>
           <motion.p className="lede" variants={fadeUpItem}>
             Welcome back. Use the demo account below or your own.
           </motion.p>
@@ -100,15 +114,13 @@ export function Login() {
               />
             </label>
             {error && <div className="field-error">{error}</div>}
-            <motion.button
+            <MagneticButton
               className="btn btn-primary"
               style={{ width: '100%', marginTop: 12, padding: '11px 16px' }}
               disabled={busy}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
             >
               {busy ? 'Signing in…' : 'Sign in'}
-            </motion.button>
+            </MagneticButton>
           </motion.form>
           <motion.p className="muted" style={{ marginTop: 20, fontSize: 13 }} variants={fadeUpItem}>
             No account? <Link to="/register">Create one</Link>

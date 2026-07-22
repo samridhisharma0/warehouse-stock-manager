@@ -11,6 +11,18 @@ export default defineConfig({
       '@shared': path.resolve(__dirname, '../shared'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'motion': ['motion/react'],
+          'anime': ['animejs'],
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'lottie': ['lottie-react'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     fs: {

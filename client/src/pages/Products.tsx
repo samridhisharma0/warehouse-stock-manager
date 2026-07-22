@@ -1,10 +1,13 @@
 import { useEffect, useState, type FormEvent, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import type { Product } from '@shared/types';
 import { api } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { Modal } from '../components/Modal';
+import { EmptyState } from '../components/EmptyState';
 import { stockLevel, stockLabel, stockPct } from '../lib/stock';
+import { MagneticButton, RippleButton } from '../components/ui/MotionElements';
 
 type Draft = {
   sku: string;
@@ -50,6 +53,7 @@ export function Products() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
+  const [tbodyRef] = useAutoAnimate();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -210,14 +214,9 @@ export function Products() {
             }}
           >⌕</span>
         </div>
-        <motion.button
-          className="btn btn-primary"
-          onClick={openCreate}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
+        <MagneticButton className="btn btn-primary" onClick={openCreate}>
           + New product
-        </motion.button>
+        </MagneticButton>
       </div>
 
       <div className="card">
@@ -228,10 +227,10 @@ export function Products() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="empty">
-            <div className="big">{query ? 'No results found' : 'No products yet'}</div>
-            {query ? 'Try a different search term.' : 'Create your first product to start tracking stock.'}
-          </div>
+          <EmptyState
+            title={query ? 'No results found' : 'No products yet'}
+            subtitle={query ? 'Try a different search term.' : 'Create your first product to start tracking stock.'}
+          />
         ) : (
           <div className="table-wrap">
             <table className="table">
@@ -246,7 +245,7 @@ export function Products() {
                   <th></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody ref={tbodyRef}>
                 {filtered.map((p, i) => {
                   const level = stockLevel(p);
                   return (
@@ -312,24 +311,20 @@ export function Products() {
           onClose={() => setModalOpen(false)}
           footer={
             <>
-              <motion.button
+              <RippleButton
                 className="btn btn-ghost"
                 onClick={() => setModalOpen(false)}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
               >
                 Cancel
-              </motion.button>
-              <motion.button
+              </RippleButton>
+              <RippleButton
                 className="btn btn-primary"
                 onClick={onSubmit}
                 disabled={saving}
                 type="submit"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
               >
                 {saving ? 'Saving…' : editing ? 'Save changes' : 'Create product'}
-              </motion.button>
+              </RippleButton>
             </>
           }
         >

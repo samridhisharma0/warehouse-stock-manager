@@ -1,7 +1,11 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import { motion, type Variants } from 'framer-motion';
+import { motion, type Variants } from 'motion/react';
+import Lenis from 'lenis';
 import { useAuth } from '../context/AuthContext';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { MagneticButton } from './ui/MotionElements';
+import { useTheme } from '../context/ThemeContext';
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', ico: '▤', eyebrow: 'Overview', title: 'Dashboard' },
@@ -35,6 +39,8 @@ export function Layout() {
   const mainRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const current = NAV.find((n) => location.pathname.startsWith(n.to)) ?? NAV[0];
+  const reduced = useReducedMotion();
+  const { theme, toggle } = useTheme();
 
   useEffect(() => {
     const el = mainRef.current;
@@ -43,6 +49,28 @@ export function Layout() {
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
+
+  // Lenis smooth scroll for main content
+  useEffect(() => {
+    if (reduced) return;
+    const el = mainRef.current;
+    if (!el) return;
+    const lenis = new Lenis({
+      wrapper: el,
+      content: el.firstElementChild ?? el,
+      duration: 1.0,
+      easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      touchMultiplier: 2,
+      syncTouch: false,
+    });
+    let rafId = 0;
+    function raf(time: number) {
+      lenis.raf(time);
+      rafId = requestAnimationFrame(raf);
+    }
+    rafId = requestAnimationFrame(raf);
+    return () => { lenis.destroy(); cancelAnimationFrame(rafId); };
+  }, [reduced]);
 
   return (
     <div className="shell">
@@ -94,15 +122,22 @@ export function Layout() {
         ))}
         <div className="sidebar-foot">
           <div className="who">{user?.email}</div>
-          <motion.button
-            className="btn btn-ghost btn-sm"
-            style={{ width: '100%' }}
-            onClick={logout}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            Sign out
-          </motion.button>
+          <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+            <MagneticButton
+              className="btn btn-ghost btn-sm"
+              style={{ flex: 1 }}
+              onClick={toggle}
+            >
+              {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+            </MagneticButton>
+            <MagneticButton
+              className="btn btn-ghost btn-sm"
+              style={{ flex: 1 }}
+              onClick={logout}
+            >
+              Sign out
+            </MagneticButton>
+          </div>
         </div>
       </motion.aside>
 

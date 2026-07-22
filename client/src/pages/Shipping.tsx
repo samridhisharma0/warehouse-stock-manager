@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'motion/react';
 import type { Product, ShippingResponse } from '@shared/types';
 import { api } from '../api/client';
 import { useToast } from '../context/ToastContext';
+import { MagneticButton, RippleButton, PulseRingLoader } from '../components/ui/MotionElements';
 
 interface ItemRow {
   sku: string;
@@ -29,6 +30,13 @@ const quoteRowVariants: Variants = {
     transition: { delay: 0.2 + i * 0.08, duration: 0.3, ease: [0.16, 1, 0.3, 1] },
   }),
 };
+
+const ZONE_MATRIX = [
+  { id: 'A', name: 'Metro / Local', rate: 30, pincodes: '11, 20, 40, 50, 56, 60, 70' },
+  { id: 'B', name: 'Regional', rate: 50, pincodes: '30, 38, 39, 44, 62, 68, 74, 76, 78' },
+  { id: 'C', name: 'National', rate: 80, pincodes: '13, 14, 15, 17–19, 24–26, 36–37, 80, 82, 84, 85' },
+  { id: 'D', name: 'Remote', rate: 120, pincodes: 'All other pincodes' },
+];
 
 export function Shipping() {
   const toast = useToast();
@@ -109,6 +117,8 @@ export function Shipping() {
         { label: 'Vehicle', value: `${result.vehicleCount} × ${result.vehicle}` },
         { label: 'Dispatch cost', value: `${result.currency} ${result.vehicleDispatchCost}` },
         { label: 'Weight cost', value: `${result.currency} ${result.weightCost}` },
+        { label: 'Zone', value: `${result.zone}` },
+        { label: 'Rate per kg', value: `${result.currency} ${result.zoneRatePerKg}` },
       ]
     : [];
 
@@ -204,108 +214,179 @@ export function Shipping() {
         </AnimatePresence>
 
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <motion.button
-            className="btn btn-ghost btn-sm"
-            onClick={addRow}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
+          <MagneticButton className="btn btn-ghost btn-sm" onClick={addRow}>
             + Add item
-          </motion.button>
-          <motion.button
+          </MagneticButton>
+          <RippleButton
             className="btn btn-primary"
             onClick={calculate}
             disabled={busy}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
           >
             {busy ? 'Calculating…' : 'Calculate shipping'}
-          </motion.button>
+          </RippleButton>
         </div>
       </div>
 
-      <div className="card" style={{ padding: 24, position: 'sticky', top: 80 }}>
-        <div className="section-head">
-          <h2>Quote</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {/* Zone Rate Matrix */}
+        <div className="card" style={{ padding: 24 }}>
+          <div className="section-head">
+            <h2>Zone rate matrix</h2>
+          </div>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Zone</th>
+                  <th>Name</th>
+                  <th>Rate/kg</th>
+                  <th>Pincode prefixes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ZONE_MATRIX.map((z, i) => (
+                  <motion.tr
+                    key={z.id}
+                    custom={i}
+                    variants={quoteRowVariants}
+                    initial="hidden"
+                    animate="show"
+                    whileHover={{ backgroundColor: 'var(--surface-hover)' }}
+                    className={result?.zoneInfo.id === z.id ? 'zone-active' : ''}
+                  >
+                    <td>
+                      <span className={`pill ${z.id === 'A' ? 'ok' : z.id === 'D' ? 'danger' : z.id === 'C' ? 'warn' : 'neutral'}`}>
+                        {z.id}
+                      </span>
+                    </td>
+                    <td style={{ fontWeight: 500 }}>{z.name}</td>
+                    <td className="mono">₹{z.rate}</td>
+                    <td className="mono muted" style={{ fontSize: 12 }}>{z.pincodes}</td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <AnimatePresence mode="wait">
-          {busy ? (
-            <motion.div
-              key="loading"
-              style={{ padding: '32px 0', textAlign: 'center' }}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <div className="spinner spinner-lg" style={{ margin: '0 auto 12px' }} />
-              <div className="muted" style={{ fontSize: 'var(--fs-sm)' }}>Calculating optimal route…</div>
-            </motion.div>
-          ) : !result ? (
-            <motion.div
-              key="empty"
-              className="empty"
-              style={{ padding: '32px 10px' }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <div className="big">No quote yet</div>
-              Enter a shipment and calculate to see the routing and cost.
-            </motion.div>
-          ) : (
-            <motion.div
-              key="result"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            >
+
+        {/* Quote Result */}
+        <div className="card" style={{ padding: 24, position: 'sticky', top: 80 }}>
+          <div className="section-head">
+            <h2>Quote</h2>
+          </div>
+          <AnimatePresence mode="wait">
+            {busy ? (
               <motion.div
-                style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20 }}
-                initial={{ opacity: 0, scale: 0.9 }}
+                key="loading"
+                style={{ padding: '32px 0', textAlign: 'center' }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1, duration: 0.4 }}
+                exit={{ opacity: 0, scale: 0.95 }}
               >
-                <div className="mono" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--ink)' }}>
-                  {result.currency} {result.totalCost.toLocaleString()}
-                </div>
-                <span className="pill neutral">Zone {result.zone}</span>
+                <PulseRingLoader size={56} />
+                <div className="muted" style={{ fontSize: 'var(--fs-sm)', marginTop: 12 }}>Calculating optimal route…</div>
               </motion.div>
-
-              <div className="table-wrap">
-                <table className="table" style={{ marginBottom: 16 }}>
-                  <tbody>
-                    {quoteRows.map((row, i) => (
-                      <motion.tr
-                        key={row.label}
-                        custom={i}
-                        variants={quoteRowVariants}
-                        initial="hidden"
-                        animate="show"
-                        whileHover={{ backgroundColor: 'var(--surface-hover)' }}
-                      >
-                        <td className="muted">{row.label}</td>
-                        <td className="mono" style={{ textAlign: 'right', fontWeight: row.bold ? 600 : 400, color: row.bold ? 'var(--ink)' : undefined }}>
-                          {row.value}
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
+            ) : !result ? (
               <motion.div
-                className="callout accent"
+                key="empty"
+                className="empty"
+                style={{ padding: '32px 10px' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <div className="big">No quote yet</div>
+                Enter a shipment and calculate to see the routing and cost.
+              </motion.div>
+            ) : (
+              <motion.div
+                key="result"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4, duration: 0.4 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               >
-                <strong>How this was calculated</strong>
-                <p style={{ margin: '8px 0 0', lineHeight: 1.6 }}>{result.justification}</p>
+                <motion.div
+                  style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20 }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1, duration: 0.4 }}
+                >
+                  <div className="mono" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--ink)' }}>
+                    {result.currency} {result.totalCost.toLocaleString()}
+                  </div>
+                  <span className="pill neutral">Zone {result.zone}</span>
+                </motion.div>
+
+                <div className="table-wrap">
+                  <table className="table" style={{ marginBottom: 16 }}>
+                    <tbody>
+                      {quoteRows.map((row, i) => (
+                        <motion.tr
+                          key={row.label}
+                          custom={i}
+                          variants={quoteRowVariants}
+                          initial="hidden"
+                          animate="show"
+                          whileHover={{ backgroundColor: 'var(--surface-hover)' }}
+                        >
+                          <td className="muted">{row.label}</td>
+                          <td className="mono" style={{ textAlign: 'right', fontWeight: row.bold ? 600 : 400, color: row.bold ? 'var(--ink)' : undefined }}>
+                            {row.value}
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Alternatives */}
+                {result.alternatives.length > 0 && (
+                  <motion.div
+                    style={{ marginBottom: 16 }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3, duration: 0.4 }}
+                  >
+                    <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--ink)', marginBottom: 8 }}>
+                      Vehicle alternatives considered
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {/* Cheapest option */}
+                      <div className="vehicle-option vehicle-option--best">
+                        <span className="pill ok" style={{ fontSize: 10 }}>Best</span>
+                        <span className="mono" style={{ fontWeight: 600 }}>{result.cheapestOption.vehicleCount} × {result.cheapestOption.vehicle}</span>
+                        <span className="mono" style={{ marginLeft: 'auto', color: 'var(--ok)' }}>
+                          {result.currency} {result.cheapestOption.totalCost.toLocaleString()}
+                        </span>
+                      </div>
+                      {/* Other options */}
+                      {result.alternatives.map((alt) => (
+                        <div key={`${alt.vehicle}-${alt.vehicleCount}`} className="vehicle-option">
+                          <span style={{ width: 36 }} />
+                          <span className="mono">{alt.vehicleCount} × {alt.vehicle}</span>
+                          <span className="mono muted" style={{ marginLeft: 'auto' }}>
+                            {result.currency} {alt.totalCost.toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                <motion.div
+                  className="callout accent"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4, duration: 0.4 }}
+                >
+                  <strong>How this was calculated</strong>
+                  <p style={{ margin: '8px 0 0', lineHeight: 1.6 }}>{result.justification}</p>
+                </motion.div>
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </motion.div>
   );

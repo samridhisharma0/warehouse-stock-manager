@@ -1,8 +1,14 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, lazy, Suspense } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, type Variants } from 'framer-motion';
+import { motion, type Variants } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { AnimatedText, MagneticButton } from '../components/ui/MotionElements';
+import { AuthSlider } from '../components/ui/AuthSlider';
+
+const ParticlesBg = lazy(() =>
+  import('../components/ParticlesBg').then((m) => ({ default: m.ParticlesBg }))
+);
 
 const staggerContainer: Variants = {
   hidden: { opacity: 0 },
@@ -43,20 +49,26 @@ export function Register() {
 
   return (
     <div className="auth-wrap">
-      <aside className="auth-aside">
-        <div className="kicker">// stockroom ops console</div>
-        <div>
-          <h2>Set up your console.</h2>
-          <p>Create an account to manage inventory, orders and shipping. Takes ten seconds.</p>
-        </div>
-        <div className="auth-metrics">
-          <div className="m">
-            <div className="n">JWT</div>
-            <div className="l">secured</div>
+      <aside className="auth-aside" style={{ position: 'relative' }}>
+        <Suspense fallback={null}>
+          <ParticlesBg />
+        </Suspense>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div className="kicker">// stockroom ops console</div>
+          <div>
+            <h2>Set up your console.</h2>
+            <p>Create an account to manage inventory, orders and shipping. Takes ten seconds.</p>
           </div>
-          <div className="m">
-            <div className="n">bcrypt</div>
-            <div className="l">hashed</div>
+          <AuthSlider mode="register" />
+          <div className="auth-metrics">
+            <div className="m">
+              <div className="n">JWT</div>
+              <div className="l">secured</div>
+            </div>
+            <div className="m">
+              <div className="n">bcrypt</div>
+              <div className="l">hashed</div>
+            </div>
           </div>
         </div>
       </aside>
@@ -68,7 +80,9 @@ export function Register() {
           initial="hidden"
           animate="show"
         >
-          <motion.h1 variants={fadeUpItem}>Create account</motion.h1>
+          <motion.h1 variants={fadeUpItem}>
+            <AnimatedText text="Create account" />
+          </motion.h1>
           <motion.p className="lede" variants={fadeUpItem}>
             Your password is hashed with bcrypt before it is stored.
           </motion.p>
@@ -107,15 +121,13 @@ export function Register() {
               />
             </label>
             {error && <div className="field-error">{error}</div>}
-            <motion.button
+            <MagneticButton
               className="btn btn-primary"
               style={{ width: '100%', marginTop: 12, padding: '11px 16px' }}
               disabled={busy}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
             >
               {busy ? 'Creating…' : 'Create account'}
-            </motion.button>
+            </MagneticButton>
           </motion.form>
           <motion.p className="muted" style={{ marginTop: 20, fontSize: 13 }} variants={fadeUpItem}>
             Already have an account? <Link to="/login">Sign in</Link>

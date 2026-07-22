@@ -11,7 +11,9 @@ test('volumetric weight uses the 5000 divisor', () => {
 });
 
 test('unknown pincode falls back to the remote zone', () => {
-  assert.equal(resolveZone('999999').id, 'D');
+  const zone = resolveZone('999999');
+  assert.equal(zone.id, 'D');
+  assert.equal(zone.ratePerKg, 120);
 });
 
 test('chargeable weight is the greater of actual and volumetric', () => {
@@ -49,4 +51,51 @@ test('rejects invalid pincodes', () => {
   assert.throws(() =>
     calculateShipping({ destinationPincode: 'abc', items: [{ quantity: 1, weightKg: 1, lengthCm: 1, widthCm: 1, heightCm: 1 }] }),
   );
+});
+
+test('returns alternatives sorted by cost', () => {
+  const res = calculateShipping({
+    destinationPincode: '110001',
+    items: [{ quantity: 1, weightKg: 150, lengthCm: 1, widthCm: 1, heightCm: 1 }],
+  });
+  assert.ok(res.alternatives.length >= 1, 'should have at least one alternative');
+  // All alternatives should cost more than or equal to the cheapest
+  for (const alt of res.alternatives) {
+    assert.ok(alt.totalCost >= res.cheapestOption.totalCost, `alternative ${alt.vehicle} should cost >= cheapest`);
+  }
+});
+
+test('includes zone info in response', () => {
+  const res = calculateShipping({
+    destinationPincode: '110001',
+    items: [{ quantity: 1, weightKg: 5, lengthCm: 10, widthCm: 10, heightCm: 10 }],
+  });
+  assert.equal(res.zoneInfo.id, 'A');
+  assert.equal(res.zoneInfo.name, 'Metro / Local');
+  assert.equal(res.zoneInfo.ratePerKg, 30);
+  assert.ok(res.zoneInfo.description.length > 0);
+});
+
+test('zone B has higher rate than zone A', () => {
+  const resA = calculateShipping({
+    destinationPincode: '110001', // Zone A
+    items: [{ quantity: 1, weightKg: 10, lengthCm: 10, widthCm: 10, heightCm: 10 }],
+  });
+  const resB = calculateShipping({
+    destinationPincode: '300001', // Zone B
+    items: [{ quantity: 1, weightKg: 10, lengthCm: 10, widthCm: 10, heightCm: 10 }],
+  });
+  assert.ok(resB.zoneInfo.ratePerKg > resA.zoneInfo.ratePerKg, 'Zone B rate should be higher than Zone A');
+});
+
+test('zone C has higher rate than zone B', () => {
+  const resB = calculateShipping({
+    destinationPincode: '300001', // Zone B
+    items: [{ quantity: 1, weightKg: 10, lengthCm: 10, widthCm: 10, heightCm: 10 }],
+  });
+  const resC = calculateShipping({
+    destinationPincode: '130001', // Zone C
+    items: [{ quantity: 1, weightKg: 10, lengthCm: 10, widthCm: 10, heightCm: 10 }],
+  });
+  assert.ok(resC.zoneInfo.ratePerKg > resB.zoneInfo.ratePerKg, 'Zone C rate should be higher than Zone B');
 });

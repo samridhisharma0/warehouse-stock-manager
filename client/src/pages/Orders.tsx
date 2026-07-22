@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import type { Order, Product } from '@shared/types';
 import { api } from '../api/client';
 import { useToast } from '../context/ToastContext';
+import { EmptyState } from '../components/EmptyState';
+import { MagneticButton, RippleButton } from '../components/ui/MotionElements';
 
 interface Line {
   sku: string;
@@ -36,6 +39,7 @@ export function Orders() {
   const [loading, setLoading] = useState(true);
   const [lines, setLines] = useState<Line[]>([{ sku: '', quantity: '1' }]);
   const [submitting, setSubmitting] = useState(false);
+  const [historyRef] = useAutoAnimate();
 
   async function loadAll() {
     setLoading(true);
@@ -153,23 +157,16 @@ export function Orders() {
         </AnimatePresence>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
-          <motion.button
-            className="btn btn-ghost btn-sm"
-            onClick={addLine}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
+          <MagneticButton className="btn btn-ghost btn-sm" onClick={addLine}>
             + Add line
-          </motion.button>
-          <motion.button
+          </MagneticButton>
+          <RippleButton
             className="btn btn-primary"
             onClick={submit}
             disabled={submitting}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
           >
             {submitting ? 'Placing…' : 'Place order'}
-          </motion.button>
+          </RippleButton>
         </div>
       </div>
 
@@ -184,10 +181,10 @@ export function Orders() {
             ))}
           </div>
         ) : orders.length === 0 ? (
-          <div className="empty">
-            <div className="big">No orders yet</div>
-            Placed orders and their fulfillment breakdown will appear here.
-          </div>
+          <EmptyState
+            title="No orders yet"
+            subtitle="Placed orders and their fulfillment breakdown will appear here."
+          />
         ) : (
           <div className="table-wrap">
             <table className="table" style={{ marginTop: 12 }}>
@@ -199,7 +196,7 @@ export function Orders() {
                   <th>Placed</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody ref={historyRef}>
                 {orders.map((o, i) => (
                   <motion.tr
                     key={o.id}
