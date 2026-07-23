@@ -114,14 +114,14 @@ export function Shipping() {
 
   const quoteRows = result
     ? [
-        { label: 'Actual weight', value: `${result.totalActualWeightKg} kg` },
-        { label: 'Volumetric weight', value: `${result.totalVolumetricWeightKg} kg` },
-        { label: 'Chargeable weight', value: `${result.totalChargeableWeightKg} kg`, bold: true },
-        { label: 'Vehicle', value: `${result.vehicleCount} × ${result.vehicle}` },
-        { label: 'Dispatch cost', value: `${result.currency} ${result.vehicleDispatchCost}` },
-        { label: 'Weight cost', value: `${result.currency} ${result.weightCost}` },
-        { label: 'Zone', value: `${result.zone}` },
-        { label: 'Rate per kg', value: `${result.currency} ${result.zoneRatePerKg}` },
+        { label: 'Actual weight', value: `${result.totalActualWeightKg ?? 0} kg` },
+        { label: 'Volumetric weight', value: `${result.totalVolumetricWeightKg ?? 0} kg` },
+        { label: 'Chargeable weight', value: `${result.totalChargeableWeightKg ?? 0} kg`, bold: true },
+        { label: 'Vehicle', value: `${result.vehicleCount ?? 0} × ${result.vehicle ?? '—'}` },
+        { label: 'Dispatch cost', value: `${result.currency ?? '₹'} ${result.vehicleDispatchCost ?? 0}` },
+        { label: 'Weight cost', value: `${result.currency ?? '₹'} ${result.weightCost ?? 0}` },
+        { label: 'Zone', value: `${result.zone ?? '—'}` },
+        { label: 'Rate per kg', value: `${result.currency ?? '₹'} ${result.zoneRatePerKg ?? 0}` },
       ]
     : [];
 
@@ -327,9 +327,9 @@ export function Shipping() {
                   transition={{ delay: 0.1, duration: 0.4 }}
                 >
                   <div className="mono" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--ink)' }}>
-                    {result.currency} {result.totalCost.toLocaleString()}
+                    {result?.currency ?? '₹'} {(result?.totalCost ?? 0).toLocaleString()}
                   </div>
-                  <span className="pill neutral">Zone {result.zone}</span>
+                  <span className="pill neutral">Zone {result?.zone ?? '—'}</span>
                 </motion.div>
 
                 <div className="table-wrap">
