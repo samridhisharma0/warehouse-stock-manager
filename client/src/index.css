@@ -474,7 +474,7 @@
   .btn-icon { width: 28px; height: 28px; padding: 0; display: grid; place-items: center; }
 
   /* ── Forms ── */
-  label.field { display: block; margin-bottom: var(--space-4); }
+  label.field { display: block; margin-bottom: var(--space-3); }
   label.field > span {
     display: block;
     font-size: var(--fs-xs);
@@ -696,11 +696,9 @@
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-xl);
-    max-height: 85vh;
-    overflow: auto;
   }
   .modal-head {
-    padding: var(--space-5) var(--space-6);
+    padding: var(--space-4) var(--space-5);
     border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
@@ -717,9 +715,9 @@
     border-color: var(--danger);
     color: var(--danger);
   }
-  .modal-body { padding: var(--space-6); }
+  .modal-body { padding: var(--space-4) var(--space-5); }
   .modal-foot {
-    padding: var(--space-4) var(--space-6);
+    padding: var(--space-3) var(--space-5);
     border-top: 1px solid var(--border);
     display: flex;
     justify-content: flex-end;
@@ -734,7 +732,7 @@
   .form-note {
     font-size: var(--fs-sm);
     color: var(--faint);
-    margin: var(--space-1) 0 var(--space-4);
+    margin: var(--space-1) 0 var(--space-3);
   }
 
   /* ── Toast notifications ── */
