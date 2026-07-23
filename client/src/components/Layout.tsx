@@ -1,9 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import { motion, type Variants } from 'motion/react';
-import Lenis from 'lenis';
 import { useAuth } from '../context/AuthContext';
-import { useReducedMotion } from '../hooks/useReducedMotion';
 import { MagneticButton } from './ui/MotionElements';
 import { useTheme } from '../context/ThemeContext';
 
@@ -39,7 +37,6 @@ export function Layout() {
   const mainRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const current = NAV.find((n) => location.pathname.startsWith(n.to)) ?? NAV[0];
-  const reduced = useReducedMotion();
   const { theme, toggle } = useTheme();
 
   useEffect(() => {
@@ -49,29 +46,6 @@ export function Layout() {
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
-
-  // Lenis smooth scroll for main content
-  useEffect(() => {
-    if (reduced) return;
-    const el = mainRef.current;
-    if (!el) return;
-    const lenis = new Lenis({
-      wrapper: el,
-      content: el,
-      duration: 1.2,
-      easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      touchMultiplier: 2,
-      syncTouch: true,
-      infinite: false,
-    });
-    let rafId = 0;
-    function raf(time: number) {
-      lenis.raf(time);
-      rafId = requestAnimationFrame(raf);
-    }
-    rafId = requestAnimationFrame(raf);
-    return () => { lenis.destroy(); cancelAnimationFrame(rafId); };
-  }, [reduced]);
 
   return (
     <div className="shell">
