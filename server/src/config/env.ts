@@ -28,4 +28,6 @@ export const env = {
   CLIENT_ORIGIN: (process.env.CLIENT_ORIGIN ?? 'http://localhost:5173')
     .split(',')
     .map((s) => s.trim()),
+  SUPABASE_URL: process.env.SUPABASE_URL ?? '',
+  SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY ?? '',
 };

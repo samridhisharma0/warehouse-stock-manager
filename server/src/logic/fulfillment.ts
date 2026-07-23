@@ -2,7 +2,6 @@ import type { CreateOrderRequest, Order, OrderLine, OrderStatus } from '@shared/
 import { store } from '../db/store.js';
 import { HttpError } from '../middleware/error.js';
 
-// Human-friendly order reference, e.g. ORD-8F3K2Q.
 function orderReference(): string {
   return 'ORD-' + Math.random().toString(36).slice(2, 8).toUpperCase();
 }
@@ -12,25 +11,23 @@ function deriveStatus(lines: OrderLine[]): OrderStatus {
   const anyBackordered = lines.some((l) => l.backorderedQty > 0);
   if (anyFulfilled && !anyBackordered) return 'Fulfilled';
   if (anyFulfilled && anyBackordered) return 'Partially Fulfilled';
-  return 'Pending'; // nothing could be fulfilled
+  return 'Pending';
 }
 
 /**
  * Process an order against live stock.
  *
- * Runs as a single synchronous critical section: for each line we attempt an
- * atomic guarded decrement (never dropping stock below zero), record how much
- * was fulfilled vs backordered, then commit all stock changes + the order in
- * one write. Because there is no `await` between the reads and writes, two
- * concurrent orders for the same SKU cannot both "win" the same unit — the
- * classic oversell race is impossible here.
+ * With Supabase: each decrement_stock call is a Postgres RPC that runs inside
+ * a single SQL statement — atomic by construction.
+ *
+ * With the JSON-file store: the synchronous critical section (no await between
+ * read and decrement) prevents interleaving on Node's single thread.
  */
-export function processOrder(payload: CreateOrderRequest): Order {
+export async function processOrder(payload: CreateOrderRequest): Promise<Order> {
   if (!payload.items || payload.items.length === 0) {
     throw new HttpError(400, 'An order must contain at least one item.');
   }
 
-  // Merge duplicate SKUs and validate up front.
   const merged = new Map<string, number>();
   for (const item of payload.items) {
     const sku = String(item.sku ?? '').trim();
@@ -42,20 +39,18 @@ export function processOrder(payload: CreateOrderRequest): Order {
     merged.set(sku, (merged.get(sku) ?? 0) + qty);
   }
 
-  // Validate every SKU exists before touching stock (all-or-nothing validation).
   for (const sku of merged.keys()) {
-    if (!store.findProductBySku(sku)) {
+    if (!(await store.findProductBySku(sku))) {
       throw new HttpError(404, `Unknown product sku: ${sku}`);
     }
   }
 
   const lines: OrderLine[] = [];
   for (const [sku, requestedQty] of merged) {
-    const product = store.findProductBySku(sku)!;
-    // Guarded atomic decrement: fulfil as much as stock allows.
+    const product = (await store.findProductBySku(sku))!;
     const available = product.quantity;
     const fulfilledQty = Math.min(requestedQty, available);
-    const deducted = store.decrementStockIfAvailable(sku, fulfilledQty);
+    const deducted = await store.decrementStockIfAvailable(sku, fulfilledQty);
     lines.push({
       sku,
       name: product.name,
@@ -73,6 +68,6 @@ export function processOrder(payload: CreateOrderRequest): Order {
     createdAt: new Date().toISOString(),
   };
 
-  store.addOrder(order); // persists order + the deducted stock in one flush
+  await store.addOrder(order);
   return order;
 }

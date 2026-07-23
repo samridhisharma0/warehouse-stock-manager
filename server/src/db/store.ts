@@ -1,17 +1,11 @@
 // -----------------------------------------------------------------------------
 // Storage layer.
 //
-// This is a small in-memory store backed by a JSON file so the app runs with
-// ZERO external services or native build steps (no Mongo/Postgres/SQLite to
-// install). The public interface is deliberately repository-shaped: swapping in
-// Mongoose or Prisma later means reimplementing this one file, nothing else.
+// When SUPABASE_URL + SUPABASE_SERVICE_KEY env vars are set, uses Supabase
+// Postgres (production). Otherwise falls back to the JSON-file store (local dev).
 //
-// CONCURRENCY NOTE (relevant to Tier 2):
-// Node executes JavaScript on a single thread. Any method here that does not
-// `await` between reading and writing runs as an uninterruptible critical
-// section, so two overlapping requests cannot interleave mid-update. That is
-// what makes `decrementStockIfAvailable` a correct atomic guard — it mirrors
-// the Mongo `findOneAndUpdate({ quantity: { $gte } })` pattern from the brief.
+// The public interface is identical either way — all callers (routes, logic,
+// tests) import `store` and use the same methods.
 // -----------------------------------------------------------------------------
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,14 +13,56 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import type { Order, Product, User } from '@shared/types';
 
+// ---------------------------------------------------------------------------
+// Supabase client (lazy-initialized only when env vars exist)
+// ---------------------------------------------------------------------------
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+let _sb: SupabaseClient | null = null;
+let _sbChecked = false;
+
+function sb(): SupabaseClient | null {
+  if (_sbChecked) return _sb;
+  _sbChecked = true;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return null;
+  _sb = createClient(url, key);
+  return _sb;
+}
+
+// ---------------------------------------------------------------------------
+// snake_case ↔ camelCase mapping helpers
+// ---------------------------------------------------------------------------
+
+/** camelCase → snake_case for Supabase inserts/updates */
+function toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    const sk = k.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+    out[sk] = v;
+  }
+  return out;
+}
+
+/** snake_case → camelCase from Supabase rows */
+function toCamelCase(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    const ck = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    out[ck] = v;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// JSON-file fallback (local dev, tests)
+// ---------------------------------------------------------------------------
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, '../../data');
-// The data file location is overridable, and persistence can be turned off
-// entirely (tests set STOCKROOM_PERSIST=off so they never touch the app's file).
 const DATA_FILE = process.env.STOCKROOM_DATA_FILE ?? path.join(DATA_DIR, 'db.json');
 
 interface DbShape {
-  // users hold a passwordHash which never leaves the store as-is.
   users: (User & { passwordHash: string })[];
   products: Product[];
   orders: Order[];
@@ -34,14 +70,19 @@ interface DbShape {
 
 const empty: DbShape = { users: [], products: [], orders: [] };
 
+// ---------------------------------------------------------------------------
+// Store — delegates to Supabase when available, otherwise JSON file
+// ---------------------------------------------------------------------------
 class Store {
-  private data: DbShape = empty;
+  private data: DbShape = structuredClone(empty);
+
+  // ---- Lifecycle ----
 
   load(): void {
+    if (sb()) return; // Supabase mode: no file loading needed.
     if (fs.existsSync(DATA_FILE)) {
       try {
         this.data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')) as DbShape;
-        // Defensive: ensure all collections exist.
         this.data.users ??= [];
         this.data.products ??= [];
         this.data.orders ??= [];
@@ -54,36 +95,53 @@ class Store {
   }
 
   private persist(): void {
-    if (process.env.STOCKROOM_PERSIST === 'off') return; // in-memory only (tests)
+    if (sb()) return; // Supabase writes happen inline.
+    if (process.env.STOCKROOM_PERSIST === 'off') return;
     fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
     fs.writeFileSync(DATA_FILE, JSON.stringify(this.data, null, 2));
   }
 
-  // Test/seed helper: wipe everything.
   reset(): void {
     this.data = structuredClone(empty);
     this.persist();
   }
 
   // ---- Users ----
-  findUserByEmail(email: string) {
+
+  async findUserByEmail(email: string) {
     const normalized = email.trim().toLowerCase();
+    if (sb()) {
+      const { data } = await sb()!.from('users').select('*').eq('email', normalized).single();
+      if (!data) return undefined;
+      const row = toCamelCase(data) as User & { passwordHash: string };
+      return row;
+    }
     return this.data.users.find((u) => u.email === normalized);
   }
 
-  createUser(email: string, passwordHash: string): User {
+  async createUser(email: string, passwordHash: string): Promise<User> {
     const record = {
       id: randomUUID(),
       email: email.trim().toLowerCase(),
       passwordHash,
       createdAt: new Date().toISOString(),
     };
+    if (sb()) {
+      await sb()!.from('users').insert(toSnakeCase(record));
+      return { id: record.id, email: record.email, createdAt: record.createdAt };
+    }
     this.data.users.push(record);
     this.persist();
     return this.toPublicUser(record);
   }
 
-  findUserById(id: string): User | undefined {
+  async findUserById(id: string): Promise<User | undefined> {
+    if (sb()) {
+      const { data } = await sb()!.from('users').select('*').eq('id', id).single();
+      if (!data) return undefined;
+      const row = toCamelCase(data);
+      return { id: row.id as string, email: row.email as string, createdAt: row.createdAt as string };
+    }
     const u = this.data.users.find((x) => x.id === id);
     return u ? this.toPublicUser(u) : undefined;
   }
@@ -93,31 +151,62 @@ class Store {
   }
 
   // ---- Products ----
-  listProducts(): Product[] {
-    return [...this.data.products].sort((a, b) => a.name.localeCompare(b.name));
+
+  async listProducts(): Promise<Product[]> {
+    if (sb()) {
+      const { data } = await sb()!.from('products').select('*').order('name');
+      if (!data) return [];
+      return data.map((row) => toCamelCase(row)) as unknown as Product[];
+    }
+    const seen = new Set<string>();
+    const unique = this.data.products.filter((p) => {
+      if (seen.has(p.sku)) return false;
+      seen.add(p.sku);
+      return true;
+    });
+    return [...unique].sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  findProductBySku(sku: string): Product | undefined {
+  async findProductBySku(sku: string): Promise<Product | undefined> {
+    if (sb()) {
+      const { data } = await sb()!.from('products').select('*').eq('sku', sku).single();
+      if (!data) return undefined;
+      return toCamelCase(data) as unknown as Product;
+    }
     return this.data.products.find((p) => p.sku === sku);
   }
 
-  createProduct(input: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Product {
+  async createProduct(input: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product> {
     const now = new Date().toISOString();
     const product: Product = { ...input, id: randomUUID(), createdAt: now, updatedAt: now };
+    if (sb()) {
+      await sb()!.from('products').insert(toSnakeCase(product as unknown as Record<string, unknown>));
+      return product;
+    }
     this.data.products.push(product);
     this.persist();
     return product;
   }
 
-  updateProduct(sku: string, patch: Partial<Omit<Product, 'id' | 'sku' | 'createdAt'>>): Product | undefined {
-    const product = this.findProductBySku(sku);
+  async updateProduct(sku: string, patch: Partial<Omit<Product, 'id' | 'sku' | 'createdAt'>>): Promise<Product | undefined> {
+    const product = await this.findProductBySku(sku);
     if (!product) return undefined;
+    const updated = { ...product, ...patch, updatedAt: new Date().toISOString() };
+    if (sb()) {
+      const snakePatch = toSnakeCase(updated as unknown as Record<string, unknown>);
+      await sb()!.from('products').update(snakePatch).eq('sku', sku);
+      return updated;
+    }
     Object.assign(product, patch, { updatedAt: new Date().toISOString() });
     this.persist();
     return product;
   }
 
-  deleteProduct(sku: string): boolean {
+  async deleteProduct(sku: string): Promise<boolean> {
+    if (sb()) {
+      const { count } = await sb()!.from('products').delete().eq('sku', sku);
+      return (count ?? 0) > 0;
+    }
     const before = this.data.products.length;
     this.data.products = this.data.products.filter((p) => p.sku !== sku);
     const removed = this.data.products.length < before;
@@ -126,35 +215,44 @@ class Store {
   }
 
   /**
-   * Atomically deduct `qty` from a product's stock, but ONLY if enough is
-   * available. Returns the quantity actually deducted (0 if the guard failed or
-   * the product is missing). Synchronous by design — see the concurrency note
-   * at the top of this file.
+   * Atomically deduct stock via Supabase RPC (server-side Postgres function)
+   * or the in-memory guard for the JSON-file store.
    */
-  decrementStockIfAvailable(sku: string, qty: number): number {
+  async decrementStockIfAvailable(sku: string, qty: number): Promise<number> {
     if (qty <= 0) return 0;
-    const product = this.findProductBySku(sku);
+    if (sb()) {
+      const { data } = await sb()!.rpc('decrement_stock', { p_sku: sku, p_qty: qty });
+      return Number(data ?? 0);
+    }
+    const product = this.data.products.find((p) => p.sku === sku);
     if (!product) return 0;
-    if (product.quantity < qty) return 0; // guard: never oversell
+    if (product.quantity < qty) return 0;
     product.quantity -= qty;
     product.updatedAt = new Date().toISOString();
-    // Note: persistence deferred to the caller so a whole multi-line order
-    // commits as one write (see `commit`).
     return qty;
   }
 
   // ---- Orders ----
-  listOrders(): Order[] {
+
+  async listOrders(): Promise<Order[]> {
+    if (sb()) {
+      const { data } = await sb()!.from('orders').select('*').order('created_at', { ascending: false });
+      if (!data) return [];
+      return data.map((row) => toCamelCase(row)) as unknown as Order[];
+    }
     return [...this.data.orders].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   }
 
-  addOrder(order: Order): Order {
+  async addOrder(order: Order): Promise<Order> {
+    if (sb()) {
+      await sb()!.from('orders').insert(toSnakeCase(order as unknown as Record<string, unknown>));
+      return order;
+    }
     this.data.orders.push(order);
     this.persist();
     return order;
   }
 
-  // Force a synchronous flush (used after a batch of decrements).
   commit(): void {
     this.persist();
   }

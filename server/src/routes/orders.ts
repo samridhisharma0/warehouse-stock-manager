@@ -8,19 +8,17 @@ export const ordersRouter = Router();
 
 ordersRouter.use(requireAuth);
 
-// GET /api/orders — most recent first.
 ordersRouter.get(
   '/',
   asyncHandler(async (_req, res) => {
-    res.json({ orders: store.listOrders() });
+    res.json({ orders: await store.listOrders() });
   }),
 );
 
-// POST /api/orders — fulfil against live stock (partial fulfillment + backorders).
 ordersRouter.post(
   '/',
   asyncHandler(async (req, res) => {
-    const order = processOrder({ items: req.body?.items });
+    const order = await processOrder({ items: req.body?.items });
     res.status(201).json({ order });
   }),
 );

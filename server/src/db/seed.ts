@@ -1,16 +1,14 @@
 import bcrypt from 'bcryptjs';
 import { store } from './store.js';
 
-// Seeds a demo account + sample inventory so the app is usable immediately.
-// Runs only when the store is empty, so it never clobbers real data.
 export async function seedIfEmpty(): Promise<void> {
-  const hasUsers = !!store.findUserByEmail('demo@example.com');
-  const hasProducts = store.listProducts().length > 0;
+  const hasUsers = !!(await store.findUserByEmail('demo@example.com'));
+  const hasProducts = (await store.listProducts()).length > 0;
   if (hasUsers && hasProducts) return;
 
   if (!hasUsers) {
     const passwordHash = await bcrypt.hash('password123', 10);
-    store.createUser('demo@example.com', passwordHash);
+    await store.createUser('demo@example.com', passwordHash);
   }
 
   if (!hasProducts) {
@@ -21,6 +19,6 @@ export async function seedIfEmpty(): Promise<void> {
       { sku: 'CHAIR-ERG', name: 'Ergonomic Chair', category: 'Furniture', quantity: 3, lowStockThreshold: 4, weightKg: 18, lengthCm: 70, widthCm: 70, heightCm: 120 },
       { sku: 'USB-C-2M', name: 'USB-C Cable 2m', category: 'Cables', quantity: 200, lowStockThreshold: 50, weightKg: 0.08, lengthCm: 15, widthCm: 10, heightCm: 3 },
     ];
-    for (const s of samples) store.createProduct(s);
+    for (const s of samples) await store.createProduct(s);
   }
 }
